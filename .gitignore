@@ -1,0 +1,9 @@
+# Ignore CLion build directory
+cmake-build-debug/
+
+# Ignore compiled object files
+*.o
+
+# Ignore compiled executables
+*.exe
+
