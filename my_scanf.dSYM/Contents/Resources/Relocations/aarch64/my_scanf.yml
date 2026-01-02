@@ -1,0 +1,23 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     my_scanf
+relocations:
+  - { offset: 0x26, size: 0x8, addend: 0x0, symName: _skip_whitespace, symObjAddr: 0x0, symBinAddr: 0x100002B64, symSize: 0x90 }
+  - { offset: 0x4D, size: 0x8, addend: 0x0, symName: _skip_whitespace, symObjAddr: 0x0, symBinAddr: 0x100002B64, symSize: 0x90 }
+  - { offset: 0x71, size: 0x8, addend: 0x0, symName: _peek_char, symObjAddr: 0x90, symBinAddr: 0x100002BF4, symSize: 0x50 }
+  - { offset: 0x99, size: 0x8, addend: 0x0, symName: _match_literal, symObjAddr: 0xE0, symBinAddr: 0x100002C44, symSize: 0x80 }
+  - { offset: 0xCF, size: 0x8, addend: 0x0, symName: _str_eq_ignore_case, symObjAddr: 0x160, symBinAddr: 0x100002CC4, symSize: 0x10C }
+  - { offset: 0x105, size: 0x8, addend: 0x0, symName: _read_sign, symObjAddr: 0x26C, symBinAddr: 0x100002DD0, symSize: 0x78 }
+  - { offset: 0x12D, size: 0x8, addend: 0x0, symName: _read_digits, symObjAddr: 0x2E4, symBinAddr: 0x100002E48, symSize: 0x13C }
+  - { offset: 0x19B, size: 0x8, addend: 0x0, symName: _read_fractional_part, symObjAddr: 0x420, symBinAddr: 0x100002F84, symSize: 0xD4 }
+  - { offset: 0x1DF, size: 0x8, addend: 0x0, symName: _scan_int, symObjAddr: 0x4F4, symBinAddr: 0x100003058, symSize: 0x90 }
+  - { offset: 0x223, size: 0x8, addend: 0x0, symName: _scan_hex, symObjAddr: 0x584, symBinAddr: 0x1000030E8, symSize: 0x110 }
+  - { offset: 0x291, size: 0x8, addend: 0x0, symName: _scan_binary, symObjAddr: 0x694, symBinAddr: 0x1000031F8, symSize: 0x98 }
+  - { offset: 0x2D5, size: 0x8, addend: 0x0, symName: _scan_float, symObjAddr: 0x72C, symBinAddr: 0x100003290, symSize: 0x104 }
+  - { offset: 0x343, size: 0x8, addend: 0x0, symName: _scan_char, symObjAddr: 0x830, symBinAddr: 0x100003394, symSize: 0x5C }
+  - { offset: 0x379, size: 0x8, addend: 0x0, symName: _scan_string, symObjAddr: 0x88C, symBinAddr: 0x1000033F0, symSize: 0x15C }
+  - { offset: 0x3BD, size: 0x8, addend: 0x0, symName: _scan_quoted_string, symObjAddr: 0x9E8, symBinAddr: 0x10000354C, symSize: 0x11C }
+  - { offset: 0x401, size: 0x8, addend: 0x0, symName: _scan_bool, symObjAddr: 0xB04, symBinAddr: 0x100003668, symSize: 0x1BC }
+  - { offset: 0x437, size: 0x8, addend: 0x0, symName: _my_scanf, symObjAddr: 0xCC0, symBinAddr: 0x100003824, symSize: 0x460 }
+  - { offset: 0x5CD, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x11FC, symBinAddr: 0x100003D60, symSize: 0xF0 }
+...
