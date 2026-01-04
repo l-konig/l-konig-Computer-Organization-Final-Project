@@ -114,10 +114,10 @@ void test_hex_compare(const char *label, const char *input) {
 void test_hex(void) {
     print_section("Testing hex %x");
     const char *inputs[] = {
-        "ff\n","ABCD\n","0x10\n","0X10\n","0\n","0x\n","0xG\n","   1f\n","2Azzz\n","\n"
+        "ff\n","ABCD\n","0x10\n","0X10\n","0\n","0x\n","0X\n","0xG\n","   1f\n","2Azzz\n","\n"
     };
     const char *labels[] = {
-        "simple hex","uppercase","0x prefix","0X prefix","single zero","0x only","invalid after prefix",
+        "simple hex","uppercase","0x prefix","0X prefix","single zero","0x only","0X only","invalid after prefix",
         "leading spaces","trailing garbage","empty input"
     };
     for(int i=0;i<sizeof(inputs)/sizeof(inputs[0]);i++) test_hex_compare(labels[i],inputs[i]);
