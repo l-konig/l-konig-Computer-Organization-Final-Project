@@ -12,3 +12,6 @@ my_scanf
 
 # macOS debug symbols
 *.dSYM/
+
+# CLion / JetBrains
+.idea/
