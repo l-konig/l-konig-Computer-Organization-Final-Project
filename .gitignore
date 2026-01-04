@@ -7,3 +7,8 @@ cmake-build-debug/
 # Ignore compiled executables
 *.exe
 
+# compiled binaries
+my_scanf
+
+# macOS debug symbols
+*.dSYM/
