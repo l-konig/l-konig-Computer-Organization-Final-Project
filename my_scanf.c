@@ -157,15 +157,43 @@ int scan_int(void *ptr, int width, const char *length) {
 int scan_hex(void *ptr, int width, const char *length) {
     skip_whitespace();
 
-    int ch = getchar();
-    // Optional 0x prefix
-    if (ch == '0') {
-        int next = getchar();
-        if (next != 'x' && next != 'X') { ungetc(next, stdin); ungetc(ch, stdin); }
-    } else { ungetc(ch, stdin); }
-
+    int digits = 0;
     long long val = 0;
-    if (!scan_digits_width(&val, 16, width ? width : 0)) return 0;
+
+    int ch = getchar();
+
+    // Handle leading 0
+    if (ch == '0') {
+        digits = 1;
+        val = 0;
+
+        int next = getchar();
+        if (next == 'x' || next == 'X') {
+            // 0x prefix recognized
+        } else {
+            ungetc(next, stdin);
+        }
+    } else {
+        ungetc(ch, stdin);
+    }
+
+    // Read remaining hex digits
+    while ((ch = getchar()) != EOF) {
+        int d;
+        if ('0' <= ch && ch <= '9') d = ch - '0';
+        else if ('a' <= ch && ch <= 'f') d = ch - 'a' + 10;
+        else if ('A' <= ch && ch <= 'F') d = ch - 'A' + 10;
+        else {
+            ungetc(ch, stdin);
+            break;
+        }
+
+        val = val * 16 + d;
+        digits++;
+        if (width && digits >= width) break;
+    }
+
+    if (digits == 0) return 0;
 
     store_signed_integer(ptr, length, val);
     return 1;
@@ -279,19 +307,19 @@ int my_scanf(const char *format, ...) {
 
     for (const char *p = format; *p; p++) {
         if (*p == '%') {
-            p++;
+            p++;  // move past '%'
 
-            if (*p == '%') {          // "%%" literal case
-                if (!match_literal('%')) goto end;
-                assigned++;
-                continue;
+            // Handle literal "%%" case: match '%' in input but don't count as assignment
+            if (*p == '%') {
+                if (!match_literal('%')) goto end; // match input %
+                continue; // do NOT increment assigned
             }
 
             // Parse optional width
             int width = 0;
             while (isdigit(*p)) { width = width * 10 + (*p - '0'); p++; }
 
-            // Parse length modifier
+            // Parse length modifier (hh, h, l, ll)
             char length[3] = "";
             if (*p == 'h' && *(p + 1) == 'h') { strcpy(length, "hh"); p += 2; }
             else if (*p == 'h') { strcpy(length, "h"); p++; }
@@ -355,11 +383,239 @@ int my_scanf(const char *format, ...) {
                 default:
                     if (!match_literal(spec)) goto end;
             }
-        } else if (isspace(*p)) skip_whitespace();
-        else if (!match_literal(*p)) goto end;
+        } else if (isspace(*p)) {
+            skip_whitespace(); // skip spaces in format
+        } else if (!match_literal(*p)) {
+            goto end; // literal character must match input
+        }
     }
 
 end:
     va_end(args);
     return assigned ? assigned : (feof(stdin) ? EOF : 0);
+}
+
+/* ===================================
+   FULL EXTENDED TEST SUITE
+   =================================== */
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <limits.h>
+#include <float.h>
+
+/* =========================
+   GLOBAL TEST COUNTERS
+   ========================= */
+static int tests_run = 0;
+static int tests_passed = 0;
+
+/* =========================
+   OUTPUT HELPERS
+   ========================= */
+void print_section(const char *title) {
+    printf("\n== %s ==\n", title);
+}
+
+void pass(const char *label) {
+    printf("  ✓ PASS: %s\n", label);
+    tests_passed++;
+    tests_run++;
+}
+
+void fail(const char *label) {
+    printf("  ✗ FAIL: %s\n", label);
+    tests_run++;
+}
+
+/* =========================
+   INPUT REDIRECTION
+   ========================= */
+void with_input(const char *input, void (*test_fn)(void)) {
+    FILE *tmp = fopen("test_input.txt", "w");
+    if (!tmp) { perror("fopen"); exit(1); }
+    fputs(input, tmp);
+    fclose(tmp);
+
+    freopen("test_input.txt", "r", stdin);
+    test_fn();
+}
+
+/* =========================
+   INTEGER %d
+   ========================= */
+static int scan_val, scan_ret;
+static int my_val, my_ret;
+
+void run_scanf_int(void) { scan_val=-999; scan_ret=scanf("%d", &scan_val); }
+void run_myscanf_int(void) { my_val=-999; my_ret=my_scanf("%d", &my_val); }
+
+void test_int(const char* label, const char* input) {
+    with_input(input, run_scanf_int);
+    with_input(input, run_myscanf_int);
+    if(scan_ret==my_ret && scan_val==my_val) pass(label);
+    else { printf("    scanf=%d val=%d | myscanf=%d val=%d\n", scan_ret, scan_val, my_ret, my_val); fail(label);}
+}
+
+void test_integers(void) {
+    print_section("Extended integer tests");
+    /* normal */
+    test_int("positive","42\n");
+    test_int("negative","-99\n");
+    test_int("explicit +"," +123\n");
+    test_int("zero","0\n");
+    test_int("leading spaces","   456\n");
+    test_int("trailing garbage","789abc\n");
+    /* edge */
+    test_int("empty input","\n");
+    test_int("spaces only","   \n");
+    test_int("just minus","-\n");
+    test_int("just plus","+ \n");
+    test_int("INT_MAX","2147483647\n");
+    test_int("INT_MIN","-2147483648\n");
+    test_int("overflow","999999999999\n");
+    /* width */
+    test_int("width 3","12345\n"); // scanf reads first 3 digits
+    test_int("width 5 leading zeros","00042\n");
+}
+
+/* =========================
+   HEX %x
+   ========================= */
+static unsigned hx1,hx2;
+static int hx_r1,hx_r2;
+void run_scanf_hex(void){hx1=0; hx_r1=scanf("%x",&hx1);}
+void run_myscanf_hex(void){hx2=0; hx_r2=my_scanf("%x",&hx2);}
+void test_hex(const char* label,const char* input){
+    with_input(input,run_scanf_hex);
+    with_input(input,run_myscanf_hex);
+    if(hx_r1==hx_r2 && hx1==hx2) pass(label);
+    else { printf("    scanf=%d val=%x | myscanf=%d val=%x\n", hx_r1,hx1,hx_r2,hx2); fail(label);}
+}
+void test_hexes(void){
+    print_section("Extended hex tests");
+    test_hex("simple hex","ff\n");
+    test_hex("uppercase","ABCD\n");
+    test_hex("0x prefix","0x1a\n");
+    test_hex("0X prefix","0X1A\n");
+    test_hex("zero","0\n");
+    test_hex("0x only","0x\n");
+    test_hex("invalid digit","0xG\n");
+    test_hex("leading zeros","000ff\n");
+    test_hex("trailing garbage","1fZZ\n");
+}
+
+/* =========================
+   BINARY %b
+   ========================= */
+static int bval,bret;
+void run_myscanf_bin(void){bval=-1; bret=my_scanf("%b",&bval);}
+void test_bin(const char* label,const char* input,int expected){
+    with_input(input,run_myscanf_bin);
+    if(bret==1 && bval==expected) pass(label);
+    else { printf("    got ret=%d val=%d expected=%d\n",bret,bval,expected); fail(label);}
+}
+void test_binaries(void){
+    print_section("Extended binary tests");
+    test_bin("101","101\n",5);
+    test_bin("0b101","0b101\n",5);
+    test_bin("0B111","0B111\n",7);
+    test_bin("zero","0\n",0);
+    test_bin("invalid stop","102\n",2);
+    test_bin("leading spaces","   110\n",6);
+    test_bin("long binary","11111111\n",255);
+    test_bin("max binary","1111111111111111111111111111111\n",0x7FFFFFFF);
+}
+
+/* =========================
+   STRINGS %s
+   ========================= */
+static char s1[128],s2[128]; static int sr1,sr2;
+void run_scanf_string(void){memset(s1,0,sizeof(s1)); sr1=scanf("%s",s1);}
+void run_myscanf_string(void){memset(s2,0,sizeof(s2)); sr2=my_scanf("%s",s2);}
+void test_str(const char* label,const char* input){
+    with_input(input,run_scanf_string);
+    with_input(input,run_myscanf_string);
+    if(sr1==sr2 && strcmp(s1,s2)==0) pass(label);
+    else { printf("    scanf=%d val='%s' | myscanf=%d val='%s'\n",sr1,s1,sr2,s2); fail(label);}
+}
+void test_strings_extended(void){
+    print_section("Extended string tests");
+    test_str("simple","hello\n");
+    test_str("leading spaces","   world\n");
+    test_str("stops at space","hi there\n");
+    test_str("empty input","\n");
+    test_str("only spaces","   \n");
+    test_str("punctuation","foo,bar\n");
+    test_str("numbers","123abc\n");
+    test_str("max length","abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz\n");
+}
+
+/* =========================
+   FLOAT %f
+   ========================= */
+static float f1,f2; static int fr1,fr2;
+void run_scanf_float(void){f1=0; fr1=scanf("%f",&f1);}
+void run_myscanf_float(void){f2=0; fr2=my_scanf("%f",&f2);}
+void test_float(const char* label,const char* input){
+    with_input(input,run_scanf_float);
+    with_input(input,run_myscanf_float);
+    if(fr1==fr2 && f1==f2) pass(label);
+    else { printf("    scanf=%d val=%f | myscanf=%d val=%f\n",fr1,f1,fr2,f2); fail(label);}
+}
+void test_floats_extended(void){
+    print_section("Extended float tests");
+    test_float("positive","3.14\n");
+    test_float("negative","-0.001\n");
+    test_float("zero","0.0\n");
+    test_float("+0.0","+0.0\n");
+    test_float("-0.0","-0.0\n");
+    test_float("tiny","1.2e-30\n");
+    test_float("huge","1e30\n");
+    test_float("scientific","1e2\n");
+    test_float("leading spaces","   2.71\n");
+    test_float("trailing garbage","1.23abc\n");
+}
+
+/* =========================
+   MIXED TESTS
+   ========================= */
+static int mi1,mi2; static unsigned mx1,mx2; static float mf1,mf2; static char ms1[64],ms2[64];
+static int mr1,mr2;
+
+void run_scanf_mixed(void){mi1=0; mx1=0; mf1=0; memset(ms1,0,sizeof(ms1)); mr1=scanf("%d %x %f %s",&mi1,&mx1,&mf1,ms1);}
+void run_myscanf_mixed(void){mi2=0; mx2=0; mf2=0; memset(ms2,0,sizeof(ms2)); mr2=my_scanf("%d %x %f %s",&mi2,&mx2,&mf2,ms2);}
+
+void test_mixed(const char* label,const char* input){
+    with_input(input,run_scanf_mixed);
+    with_input(input,run_myscanf_mixed);
+    if(mr1==mr2 && mi1==mi2 && mx1==mx2 && mf1==mf2 && strcmp(ms1,ms2)==0) pass(label);
+    else { printf("    scanf=%d %d %x %f '%s' | myscanf=%d %d %x %f '%s'\n",mr1,mi1,mx1,mf1,ms1,mr2,mi2,mx2,mf2,ms2); fail(label);}
+}
+
+void test_mixed_extended(void){
+    print_section("Extended mixed type tests");
+    test_mixed("normal","42 ff 3.14 hello\n");
+    test_mixed("leading spaces","   7 0x10 2.71 world\n");
+    test_mixed("partial second","9 ZZZ 1.23 foo\n");
+    test_mixed("zeros","0 0 0.0 zero\n");
+    test_mixed("max values","2147483647 ffffffff 1e30 max\n");
+}
+
+/* =========================
+   MAIN
+   ========================= */
+int main(void){
+    test_integers();
+    test_hexes();
+    test_binaries();
+    test_strings_extended();
+    test_floats_extended();
+    test_mixed_extended();
+
+    printf("\n====================\n");
+    printf("TEST SUMMARY\n");
+    printf("Passed %d / %d tests\n",tests_passed,tests_run);
+    printf("====================\n");
+    return 0;
 }
