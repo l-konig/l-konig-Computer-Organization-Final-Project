@@ -3,7 +3,7 @@ project(CompOrgFinalProject C)
 
 set(CMAKE_C_STANDARD 11)
 
-# === Main executable (if you still need it) ===
+# === Main executable ===
 add_executable(CompOrgFinalProject main.c my_scanf.c)
 
 # === Tests executable ===
