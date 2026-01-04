@@ -272,24 +272,92 @@ void test_booleans(void){
 /* =========================
    DELIMITER TESTS %D
    ========================= */
+// Forward declarations
+int scan_delimited_string(char *buf, int max_width, const char *delimiter);
+int my_scanf(const char *fmt, ...);  // your %D implementation
+void with_input(const char *input, void (*test_fn)(void));
+void pass(const char *label);
+void fail(const char *label);
+void print_section(const char *section);
+
+// Global result buffer
 static char delim_val[64];
-void run_myscanf_delim(void){memset(delim_val,0,sizeof(delim_val)); my_scanf("%D,",delim_val);}
-void test_delimiter(const char *label,const char *input,const char *expected){
-    with_input(input,run_myscanf_delim);
-    if(strcmp(delim_val,expected)==0) pass(label);
-    else{printf("    input: '%s' got '%s' expected '%s'\n",input,delim_val,expected); fail(label);}
+
+// Globals to pass to helper
+static const char *current_input;
+static const char *current_delim;
+
+// Helper function for multi-character delimiters
+static void run_delim_test(void) {
+    memset(delim_val, 0, sizeof(delim_val));
+    scan_delimited_string(delim_val, sizeof(delim_val) - 1, current_delim);
 }
-void test_delimiters(void){
+
+// Simple helper for single-character delimiter tests using %D
+static void run_myscanf_delim(void) {
+    memset(delim_val, 0, sizeof(delim_val));
+    my_scanf("%D,", delim_val);
+}
+
+// Single-character delimiter test
+static void test_delimiter(const char *label, const char *input, const char *expected) {
+    with_input(input, run_myscanf_delim);
+    if (strcmp(delim_val, expected) == 0) pass(label);
+    else {
+        printf("    input: '%s' got '%s' expected '%s'\n", input, delim_val, expected);
+        fail(label);
+    }
+}
+
+// Multi-character delimiter test
+static void test_delimiter_multi(const char *label, const char *input, const char *delimiter, const char *expected) {
+    current_input = input;
+    current_delim = delimiter;
+    with_input(current_input, run_delim_test);
+
+    if (strcmp(delim_val, expected) == 0) pass(label);
+    else {
+        printf("    input: '%s' with delimiter '%s' got '%s' expected '%s'\n",
+               input, delimiter, delim_val, expected);
+        fail(label);
+    }
+}
+
+// Run all delimiter tests
+void test_delimiters(void) {
     print_section("Testing delimiters %D");
-    test_delimiter("comma","hello,world\n","hello");
-    test_delimiter("space","foo bar\n","foo");
-    test_delimiter("tab","a\tb\n","a");
-    test_delimiter("newline","x\ny\n","x");
-    test_delimiter("delimiter at end","abc,\n","abc");
-    test_delimiter("empty input","\n","");
-    test_delimiter("multiple delimiters","a,b,c\n","a");
-    test_delimiter("delimiter first",",abc\n","");
-    test_delimiter("no delimiter","abc\n","abc");
+
+    // Single-character delimiters
+    test_delimiter("comma", "hello,world\n", "hello");
+    test_delimiter("space", "foo bar\n", "foo");
+    test_delimiter("tab", "a\tb\n", "a");
+    test_delimiter("newline", "x\ny\n", "x");
+    test_delimiter("delimiter at end", "abc,\n", "abc");
+    test_delimiter("empty input", "\n", "");
+    test_delimiter("multiple delimiters", "a,b,c\n", "a");
+    test_delimiter("delimiter first", ",abc\n", "");
+    test_delimiter("no delimiter", "abc\n", "abc");
+
+    // Multi-character delimiters
+    test_delimiter_multi("word delimiter", "helloENDworld\n", "END", "hello");
+    test_delimiter_multi("delimiter at start", "STOPhello\n", "STOP", "");
+    test_delimiter_multi("delimiter at end", "goodbyeSTOP\n", "STOP", "goodbye");
+    test_delimiter_multi("delimiter in middle", "abcSTOPxyz\n", "STOP", "abc");
+    test_delimiter_multi("delimiter repeated", "aSTOPbSTOPc\n", "STOP", "a");
+
+    // Special character delimiters
+    test_delimiter_multi("numeric delimiter", "foo6bar\n", "6", "foo");
+    test_delimiter_multi("symbol delimiter", "key#value\n", "#", "key");
+    test_delimiter_multi("multi-symbol delimiter", "a&&b\n", "&&", "a");
+
+    // No delimiter present (reads full input)
+    test_delimiter_multi("no delimiter present", "abcdef\n", "XYZ", "abcdef");
+
+    // Delimiter immediately after whitespace
+    test_delimiter_multi("delimiter after space", "foo STOPbar\n", "STOP", "foo ");
+
+    // Empty string input with multi-character delimiter
+    test_delimiter_multi("empty input multi-char", "\n", "END", "");
 }
 
 /* =========================

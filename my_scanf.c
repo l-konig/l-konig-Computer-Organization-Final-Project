@@ -320,18 +320,78 @@ int scan_string(char *buf, int max_width) {
     return count > 0;
 }
 
-// Reads string until first whitespace or newline (space, tab, newline)
-// max_width is the maximum characters to read
-int scan_delimited_string(char *buf, int max_width) {
+/*
+ * Reads from stdin into buf until the delimiter string is found,
+ * max_width is reached, or EOF occurs.
+ *
+ * buf: buffer to store the result
+ * max_width: maximum number of characters to store (buf size - 1)
+ * delimiter: null-terminated string to stop at (can be 1 or more characters)
+ *
+ * Returns:
+ *   1  -> successfully read at least one character
+ *   0  -> nothing read before delimiter
+ *  -1  -> EOF reached before reading any character
+ */
+int scan_delimited_string(char *buf, int max_width, const char *delimiter) {
     int ch, count = 0;
+    int delim_len = strlen(delimiter);
+    char window[128];   // sliding window for delimiter
+    int win_count = 0;
 
-    while ((ch = getchar()) != EOF && ch != ' ' && ch != '\t' && ch != '\n' && ch != ',' && count < max_width)
+    if (delim_len >= sizeof(window)) return 0; // delimiter too long
+
+    while ((ch = getchar()) != EOF && count < max_width) {
+
+        // Stop immediately if first char is newline (empty input)
+        if (count == 0 && ch == '\n') {
+            buf[0] = '\0';
+            ungetc(ch, stdin);
+            return 0;
+        }
+
         buf[count++] = (char)ch;
 
-    if (ch != EOF) ungetc(ch, stdin);
+        // Shift window for delimiter comparison
+        if (delim_len > 0) {
+            if (win_count < delim_len) {
+                window[win_count++] = ch;
+            } else {
+                memmove(window, window + 1, delim_len - 1);
+                window[delim_len - 1] = ch;
+            }
+
+            // Check if window matches delimiter
+            if (win_count == delim_len && strncmp(window, delimiter, delim_len) == 0) {
+                count -= delim_len; // remove delimiter from buffer
+                break;
+            }
+        }
+
+        // Only stop at whitespace automatically if delimiter is a single non-whitespace character
+        if (delim_len == 1 && (delimiter[0] != ch) && (ch == ' ' || ch == '\t' || ch == '\n')) {
+            count--; // do not include whitespace
+            ungetc(ch, stdin);
+            break;
+        }
+    }
+
+    // EOF before reading anything
+    if (ch == EOF && count == 0) {
+        buf[0] = '\0';
+        return -1;
+    }
+
+    // Null-terminate buffer
     buf[count] = '\0';
 
-    return count > 0 ? 1 : 0;  // <-- return 0 if nothing read
+    // Trim trailing newline if no delimiter was matched
+    if (count > 0 && buf[count - 1] == '\n') {
+        buf[count - 1] = '\0';
+        count--;
+    }
+
+    return count > 0 ? 1 : 0; // 1 = success, 0 = nothing read
 }
 
 // Boolean: true/false, yes/no, on/off, 1/0
@@ -437,10 +497,13 @@ int my_scanf(const char *format, ...) {
                     if (!scan_string(arg, width ? width : 256)) goto end;
                     assigned++; break;
                 }
-                case 'D': {
-                    char *arg = va_arg(args, char*);
-                    int w = width ? width : 256;
-                    if (!scan_delimited_string(arg, w)) goto end;
+                case 'D': {  // Delimiter extension
+                    char *arg = va_arg(args, char*);     // buffer to store string
+                    int w = width ? width : 256;        // use width if specified, else default
+                    const char *delimiter = ",";        // replace with desired delimiter or pass dynamically
+                    int ret = scan_delimited_string(arg, w, delimiter);
+
+                    if (ret <= 0) goto end;  // 0 = nothing read, -1 = EOF
                     assigned++;
                     break;
                 }
