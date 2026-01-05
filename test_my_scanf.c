@@ -46,11 +46,6 @@ void with_input(const char *input, void (*test_fn)(void)) {
 }
 
 /* =========================
-   MY_SCANF DECLARATION
-   ========================= */
-extern int my_scanf(const char *format, ...);
-
-/* =========================
    INTEGER TESTS %d
    ========================= */
 static int scan_ret, scan_val;
@@ -274,11 +269,6 @@ void test_booleans(void){
    ========================= */
 // Forward declarations
 int scan_delimited_string(char *buf, int max_width, const char *delimiter);
-int my_scanf(const char *fmt, ...);  // your %D implementation
-void with_input(const char *input, void (*test_fn)(void));
-void pass(const char *label);
-void fail(const char *label);
-void print_section(const char *section);
 
 // Global result buffer
 static char delim_val[64];
@@ -383,36 +373,79 @@ void test_floats(void){
 /* =========================
    PERCENT LITERAL %%
    ========================= */
-static int perc_scanf_ret,perc_myscanf_ret;
-void run_scanf_percent(void){perc_scanf_ret=scanf("%%");}
-void run_myscanf_percent(void){perc_myscanf_ret=my_scanf("%%");}
-void test_percent(void){
+static int perc_scanf_ret, perc_myscanf_ret;
+
+void run_scanf_percent(void) { perc_scanf_ret = scanf("%%"); }
+void run_myscanf_percent(void) { perc_myscanf_ret = my_scanf("%%"); }
+
+void test_percent(void) {
     print_section("Testing percent literal %%");
-    const char *inputs[]={"%\n","%%\n","\n","abc\n","%%%%\n","%x\n"};
-    for(int i=0;i<6;i++){
-        with_input(inputs[i],run_scanf_percent);
-        with_input(inputs[i],run_myscanf_percent);
-        int ok=inputs[i][0]=='%'? (perc_scanf_ret==perc_myscanf_ret):(perc_scanf_ret<=0 && perc_myscanf_ret<=0);
-        if(ok) pass(inputs[i]); else{printf("    input: '%s' scanf=%d myscanf=%d\n",inputs[i],perc_scanf_ret,perc_myscanf_ret); fail(inputs[i]);}
+
+    // Move inputs array inside the function scope, but outside the loop
+    const char *inputs[] = {"%\n","%%\n","\n","abc\n","%%%%\n","%x\n"};
+
+    for (int i = 0; i < (int)(sizeof(inputs)/sizeof(inputs[0])); i++) {
+        const char *input = inputs[i];  // declare variable in inner scope
+
+        with_input(input, run_scanf_percent);
+        with_input(input, run_myscanf_percent);
+
+        int ok = (input[0] == '%')
+                    ? (perc_scanf_ret == perc_myscanf_ret)
+                    : (perc_scanf_ret <= 0 && perc_myscanf_ret <= 0);
+
+        if (ok) pass(input);
+        else {
+            printf("    input: '%s' scanf=%d myscanf=%d\n", input, perc_scanf_ret, perc_myscanf_ret);
+            fail(input);
+        }
     }
 }
 
 /* =========================
    MULTI-FIELD TESTS
    ========================= */
-static int mf_d; static unsigned mf_x; static float mf_f; static char mf_s[128]; static char mf_c1,mf_c2;
+static int mf_d;
+static unsigned mf_x;
+static float mf_f_scanf, mf_f_myscanf;  // separate variables for scanf vs my_scanf
+static char mf_s[128];
+static char mf_c1, mf_c2;
 static int mf_ret_scanf, mf_ret_myscanf;
-void run_scanf_multi(void){mf_d=-999; mf_x=0; mf_f=0; mf_s[0]='\0'; mf_c1=mf_c2=0; mf_ret_scanf=scanf("%d %x %f %s %c %c",&mf_d,&mf_x,&mf_f,mf_s,&mf_c1,&mf_c2);}
-void run_myscanf_multi(void){mf_d=-999; mf_x=0; mf_f=0; mf_s[0]='\0'; mf_c1=mf_c2=0; mf_ret_myscanf=my_scanf("%d %x %f %s %c %c",&mf_d,&mf_x,&mf_f,mf_s,&mf_c1,&mf_c2);}
-void test_multi_compare(const char *label,const char *input){
-    with_input(input,run_scanf_multi);
-    with_input(input,run_myscanf_multi);
-    if(mf_ret_scanf==mf_ret_myscanf && fabs(mf_f-mf_f)<1e-6) pass(label);
-    else{printf("    input: '%s' scanf_ret=%d myscanf_ret=%d\n",input,mf_ret_scanf,mf_ret_myscanf); fail(label);}
+
+void run_scanf_multi(void) {
+    mf_d = -999;
+    mf_x = 0;
+    mf_f_scanf = 0;
+    mf_s[0] = '\0';
+    mf_c1 = mf_c2 = 0;
+    mf_ret_scanf = scanf("%d %x %f %s %c %c", &mf_d, &mf_x, &mf_f_scanf, mf_s, &mf_c1, &mf_c2);
 }
-void test_multi_fields(void){
+
+void run_myscanf_multi(void) {
+    mf_d = -999;
+    mf_x = 0;
+    mf_f_myscanf = 0;
+    mf_s[0] = '\0';
+    mf_c1 = mf_c2 = 0;
+    mf_ret_myscanf = my_scanf("%d %x %f %s %c %c", &mf_d, &mf_x, &mf_f_myscanf, mf_s, &mf_c1, &mf_c2);
+}
+
+void test_multi_compare(const char *label, const char *input) {
+    with_input(input, run_scanf_multi);
+    with_input(input, run_myscanf_multi);
+    if (mf_ret_scanf == mf_ret_myscanf && fabsf(mf_f_scanf - mf_f_myscanf) < 1e-6)
+        pass(label);
+    else {
+        printf("    input: '%s'\n", input);
+        printf("    scanf_ret=%d myscanf_ret=%d\n", mf_ret_scanf, mf_ret_myscanf);
+        printf("    scanf float=%f myscanf float=%f\n", mf_f_scanf, mf_f_myscanf);
+        fail(label);
+    }
+}
+
+void test_multi_fields(void) {
     print_section("Testing multiple fields together");
-    const char *inputs[]={
+    const char *inputs[] = {
         "42 ff 3.14 hello A B\n",
         "   7 1a 2.718 world X Y\n",
         "123 0F 0.5 test1 Z K garbage\n",
@@ -423,12 +456,12 @@ void test_multi_fields(void){
         "0 0 0.0 zero Z Z\n",
         "9 9 9.9 nine N N\n"
     };
-    const char *labels[]={
+    const char *labels[] = {
         "simple mix","leading spaces","trailing garbage","minimal spacing",
         "scientific float","invalid int","clean words","all zeros","repeated fields"
     };
-    for(int i=0;i<9;i++)
-        test_multi_compare(labels[i],inputs[i]);
+    for (int i = 0; i < 9; i++)
+        test_multi_compare(labels[i], inputs[i]);
 }
 
 /* =========================

@@ -48,18 +48,20 @@ int str_eq_ignore_case(const char *a, const char *b) {
    ========================= */
 // Writes a signed integer into ptr according to length modifier.
 void store_signed_integer(void *ptr, const char *length, long long value) {
-    if (!length || strcmp(length, "") == 0)
+    if (length) {
+        if (strcmp(length, "hh") == 0)
+            *(signed char*)ptr = (signed char)value;
+        else if (strcmp(length, "h") == 0)
+            *(short*)ptr = (short)value;
+        else if (strcmp(length, "l") == 0)
+            *(long*)ptr = (long)value;
+        else if (strcmp(length, "ll") == 0)
+            *(long long*)ptr = value;
+        else
+            *(int*)ptr = (int)value;
+    } else {
         *(int*)ptr = (int)value;
-    else if (strcmp(length, "hh") == 0)
-        *(signed char*)ptr = (signed char)value;
-    else if (strcmp(length, "h") == 0)
-        *(short*)ptr = (short)value;
-    else if (strcmp(length, "l") == 0)
-        *(long*)ptr = (long)value;
-    else if (strcmp(length, "ll") == 0)
-        *(long long*)ptr = value;
-    else
-        *(int*)ptr = (int)value;
+    }
 }
 
 // Applies sign and stores integer without clamping.
@@ -88,7 +90,6 @@ int scan_digits_width(long long *value, int base, long long width) {
             break;
         }
 
-        // Detect overflow but don't clamp (undefined in standard scanf)
         if (val > (LLONG_MAX - digit) / base)
             val = LLONG_MAX;
         else
@@ -105,9 +106,9 @@ int scan_digits_width(long long *value, int base, long long width) {
 // Applies 'e' or 'E' scientific notation exponent to a floating-point number.
 static int apply_exponent(double *result) {
     int ch = peek_char();
-    if (ch != 'e' && ch != 'E') return 1; // no exponent, fine
+    if (ch != 'e' && ch != 'E') return 1;
 
-    getchar(); // consume 'e' or 'E'
+    getchar();
 
     int exp_sign = 1;
     ch = peek_char();
@@ -121,9 +122,9 @@ static int apply_exponent(double *result) {
         digits++;
     }
 
-    if (ch != EOF) ungetc(ch, stdin); // push back first non-digit
+    if (ch != EOF) ungetc(ch, stdin);
 
-    if (digits == 0) return 0; // invalid exponent (like "1e\n")
+    if (digits == 0) return 0;
 
     *result *= pow(10.0, exp_sign*exponent);
     return 1;
@@ -138,9 +139,8 @@ int scan_int(void *ptr, int width, const char *length) {
     int sign = 1;
     int ch = peek_char();
 
-    // Optional sign
     if (ch == '+' || ch == '-') {
-        getchar();  // consume sign
+        getchar();
         sign = (ch == '-') ? -1 : 1;
         if (width > 0) width--;
     }
@@ -148,61 +148,44 @@ int scan_int(void *ptr, int width, const char *length) {
     long long value = 0;
     int digits_read = 0;
 
-    // Read digits
     while ((width == 0 || digits_read < width) && (ch = getchar()) != EOF && isdigit(ch)) {
         int digit = ch - '0';
-        // Detect overflow but do not clamp (undefined behavior matches standard scanf)
         if (value > (LLONG_MAX - digit) / 10) value = LLONG_MAX;
         else value = value * 10 + digit;
         digits_read++;
     }
 
     if (digits_read == 0) {
-        // No digits after optional sign → standard scanf returns 0
-        if (ch != EOF) ungetc(ch, stdin);  // push back character we read
+        if (ch != EOF) ungetc(ch, stdin);
         return 0;
     }
 
-    if (ch != EOF && !isdigit(ch)) ungetc(ch, stdin); // push back first non-digit
+    if (ch != EOF && !isdigit(ch)) ungetc(ch, stdin);
 
-    // Store integer with sign
     return store_integer_with_sign(ptr, length, value, sign);
 }
 
-// Hexadecimal numbers: no negative sign allowed
 int scan_hex(void *ptr, int width, const char *length) {
     skip_whitespace();
 
     int digits = 0;
     long long val = 0;
-
     int ch = getchar();
 
-    // Handle leading 0
     if (ch == '0') {
         digits = 1;
         val = 0;
-
         int next = getchar();
-        if (next == 'x' || next == 'X') {
-            // 0x prefix recognized
-        } else {
-            ungetc(next, stdin);
-        }
-    } else {
-        ungetc(ch, stdin);
-    }
+        if (next == 'x' || next == 'X') { }
+        else ungetc(next, stdin);
+    } else ungetc(ch, stdin);
 
-    // Read remaining hex digits
     while ((ch = getchar()) != EOF) {
         int d;
         if ('0' <= ch && ch <= '9') d = ch - '0';
         else if ('a' <= ch && ch <= 'f') d = ch - 'a' + 10;
         else if ('A' <= ch && ch <= 'F') d = ch - 'A' + 10;
-        else {
-            ungetc(ch, stdin);
-            break;
-        }
+        else { ungetc(ch, stdin); break; }
 
         val = val * 16 + d;
         digits++;
@@ -215,50 +198,33 @@ int scan_hex(void *ptr, int width, const char *length) {
     return 1;
 }
 
-// Read binary number optionally starting with 0b or 0B
-// Returns:
-//   1 -> successfully read binary digits
-//   0 -> invalid input (letters, empty, only prefix)
-//  -1 -> EOF
 int scan_binary(int *value) {
     int ch;
     int result = 0;
     int found_digit = 0;
 
-    // Skip leading whitespace
-    while ((ch = getchar()) != EOF && (ch == ' ' || ch == '\t' || ch == '\n'))
-        ;
+    while ((ch = getchar()) != EOF && (ch == ' ' || ch == '\t' || ch == '\n')) { }
 
-    if (ch == EOF) {
-        *value = 0;
-        return -1;  // EOF
-    }
+    if (ch == EOF) { *value = 0; return -1; }
 
-    // Optional 0b or 0B prefix
     if (ch == '0') {
         int next = getchar();
-        if (next == 'b' || next == 'B') {
-            ch = getchar(); // consume first binary digit
-        } else {
-            ungetc(next, stdin); // not b/B, push back
-            ch = '0';
-        }
+        if (next == 'b' || next == 'B') ch = getchar();
+        else { ungetc(next, stdin); ch = '0'; }
     }
 
-    // Read binary digits
     while (ch == '0' || ch == '1') {
         found_digit = 1;
         result = (result << 1) | (ch - '0');
         ch = getchar();
     }
 
-    if (ch != EOF) ungetc(ch, stdin); // push back first non-binary char
+    if (ch != EOF) ungetc(ch, stdin);
 
     *value = result;
-    return found_digit ? 1 : 0; // 1 if valid binary digits, 0 if invalid
+    return found_digit ? 1 : 0;
 }
 
-// Floating point numbers
 int scan_float(double *ptr, int width) {
     skip_whitespace();
 
@@ -274,16 +240,14 @@ int scan_float(double *ptr, int width) {
     double result = 0.0;
     int digits_read = 0;
 
-    /* Integer part */
     while (isdigit(ch = peek_char()) && (width == 0 || width-- > 0)) {
         getchar();
         result = result*10 + (ch-'0');
         digits_read++;
     }
 
-    /* Fractional part */
     if (peek_char() == '.' && (width == 0 || width > 0)) {
-        getchar(); // consume '.'
+        getchar();
         double divisor = 10.0;
         while (isdigit(ch = peek_char()) && (width == 0 || width-- > 0)) {
             getchar();
@@ -293,24 +257,19 @@ int scan_float(double *ptr, int width) {
         }
     }
 
-    /* Fail if no digits read at all */
     if (digits_read == 0) return 0;
-
-    /* Scientific notation */
     if (!apply_exponent(&result)) return 0;
 
     *ptr = result * sign;
     return 1;
 }
 
-// Single char
 int scan_char(char *c, int width) {
     int ch, count = 0;
     while (count < (width ? width : 1) && (ch = getchar()) != EOF) c[count++] = (char)ch;
     return count ? 1 : 0;
 }
 
-// Whitespace-delimited string
 int scan_string(char *buf, int max_width) {
     int ch, count = 0;
     skip_whitespace();
@@ -320,30 +279,15 @@ int scan_string(char *buf, int max_width) {
     return count > 0;
 }
 
-/*
- * Reads from stdin into buf until the delimiter string is found,
- * max_width is reached, or EOF occurs.
- *
- * buf: buffer to store the result
- * max_width: maximum number of characters to store (buf size - 1)
- * delimiter: null-terminated string to stop at (can be 1 or more characters)
- *
- * Returns:
- *   1  -> successfully read at least one character
- *   0  -> nothing read before delimiter
- *  -1  -> EOF reached before reading any character
- */
 int scan_delimited_string(char *buf, int max_width, const char *delimiter) {
     int ch, count = 0;
-    int delim_len = strlen(delimiter);
-    char window[128];   // sliding window for delimiter
-    int win_count = 0;
+    size_t delim_len = strlen(delimiter);
+    char window[128];
+    size_t win_count = 0;  // use size_t to match delim_len
 
-    if (delim_len >= sizeof(window)) return 0; // delimiter too long
+    if (delim_len >= sizeof(window)) return 0;
 
     while ((ch = getchar()) != EOF && count < max_width) {
-
-        // Stop immediately if first char is newline (empty input)
         if (count == 0 && ch == '\n') {
             buf[0] = '\0';
             ungetc(ch, stdin);
@@ -352,65 +296,53 @@ int scan_delimited_string(char *buf, int max_width, const char *delimiter) {
 
         buf[count++] = (char)ch;
 
-        // Shift window for delimiter comparison
         if (delim_len > 0) {
-            if (win_count < delim_len) {
-                window[win_count++] = ch;
-            } else {
+            if (win_count < delim_len) window[(int)(win_count++)] = (char)ch; // cast to int for indexing
+            else {
                 memmove(window, window + 1, delim_len - 1);
-                window[delim_len - 1] = ch;
+                window[(int)(delim_len - 1)] = (char)ch;
             }
 
-            // Check if window matches delimiter
             if (win_count == delim_len && strncmp(window, delimiter, delim_len) == 0) {
-                count -= delim_len; // remove delimiter from buffer
+                count -= (int)delim_len;  // already safe
                 break;
             }
         }
 
-        // Only stop at whitespace automatically if delimiter is a single non-whitespace character
+        // Handle single-character whitespace delimiters
         if (delim_len == 1 && (delimiter[0] != ch) && (ch == ' ' || ch == '\t' || ch == '\n')) {
-            count--; // do not include whitespace
+            count--;
             ungetc(ch, stdin);
             break;
         }
     }
 
-    // EOF before reading anything
     if (ch == EOF && count == 0) {
         buf[0] = '\0';
         return -1;
     }
 
-    // Null-terminate buffer
     buf[count] = '\0';
-
-    // Trim trailing newline if no delimiter was matched
     if (count > 0 && buf[count - 1] == '\n') {
         buf[count - 1] = '\0';
         count--;
     }
 
-    return count > 0 ? 1 : 0; // 1 = success, 0 = nothing read
+    return count > 0 ? 1 : 0;
 }
 
-// Boolean: true/false, yes/no, on/off, 1/0
 int scan_bool(int *value) {
     skip_whitespace();
     char buf[256];
-    if (!scan_string(buf, 255)) { *value = 0; return 0; } // empty input
+    if (!scan_string(buf, 255)) { *value = 0; return 0; }
 
     if (str_eq_ignore_case(buf,"true") || str_eq_ignore_case(buf,"yes") ||
-        str_eq_ignore_case(buf,"on") || strcmp(buf,"1")==0) {
-        *value = 1; return 1;
-        }
+        str_eq_ignore_case(buf,"on") || strcmp(buf,"1")==0) { *value = 1; return 1; }
 
     if (str_eq_ignore_case(buf,"false") || str_eq_ignore_case(buf,"no") ||
-        str_eq_ignore_case(buf,"off") || strcmp(buf,"0")==0) {
-        *value = 0; return 1;
-        }
+        str_eq_ignore_case(buf,"off") || strcmp(buf,"0")==0) { *value = 0; return 1; }
 
-    *value = 0; // fallback for invalid
+    *value = 0;
     return 0;
 }
 
@@ -424,119 +356,122 @@ int my_scanf(const char *format, ...) {
 
     for (const char *p = format; *p; p++) {
         if (*p == '%') {
-            p++;  // move past '%'
+            p++;
+            int suppress = 0;
+            if (*p == '*') { suppress = 1; p++; }
 
-            // Handle literal "%%" case: match '%' in input but don't count as assignment
             if (*p == '%') {
                 int ch = getchar();
-                if (ch == EOF) {  // input ended
-                    va_end(args);
-                    return assigned ? assigned : EOF;
-                }
-                if (ch != '%') {   // mismatch
-                    ungetc(ch, stdin);
-                    va_end(args);
-                    return assigned ? assigned : 0;
-                }
-                continue;  // matched literal %, do NOT increment assigned
+                if (ch == EOF) { va_end(args); return assigned ? assigned : EOF; }
+                if (ch != '%') { ungetc(ch, stdin); va_end(args); return assigned ? assigned : 0; }
+                continue;
             }
 
-            // Parse optional width
             int width = 0;
-            while (isdigit(*p)) { width = width * 10 + (*p - '0'); p++; }
+            while (isdigit(*p)) { width = width*10 + (*p - '0'); p++; }
 
-            // Parse length modifier (hh, h, l, ll)
             char length[3] = "";
-            if (*p == 'h' && *(p + 1) == 'h') { strcpy(length, "hh"); p += 2; }
-            else if (*p == 'h') { strcpy(length, "h"); p++; }
-            else if (*p == 'l' && *(p + 1) == 'l') { strcpy(length, "ll"); p += 2; }
-            else if (*p == 'l') { strcpy(length, "l"); p++; }
+            if (*p == 'h' && *(p+1)=='h') { strcpy(length,"hh"); p+=2; }
+            else if (*p=='h') { strcpy(length,"h"); p++; }
+            else if (*p=='l' && *(p+1)=='l') { strcpy(length,"ll"); p+=2; }
+            else if (*p=='l') { strcpy(length,"l"); p++; }
 
             char spec = *p;
             if (!spec) break;
 
-            switch (spec) {
+            switch(spec) {
                 case 'd': case 'i': {
-                    void *arg = va_arg(args, void*);
-                    if (!scan_int(arg, width, length)) goto end;
-                    assigned++; break;
+                    if (suppress) {
+                        int dummy;
+                        if (!scan_int(&dummy, width, length)) goto end;
+                    } else {
+                        void *arg = va_arg(args, void*);
+                        if (!scan_int(arg, width, length)) goto end;
+                        assigned++;
+                    }
+                    break;
                 }
                 case 'x': {
-                    void *arg = va_arg(args, void*);
-                    if (!scan_hex(arg, width, length)) goto end;
-                    assigned++; break;
+                    if (suppress) {
+                        int dummy;
+                        if (!scan_hex(&dummy, width, length)) goto end;
+                    } else {
+                        void *arg = va_arg(args, void*);
+                        if (!scan_hex(arg, width, length)) goto end;
+                        assigned++;
+                    }
+                    break;
                 }
                 case 'b': {
-                    int *arg = va_arg(args, int*);
+                    int tmp;
+                    int *arg = suppress ? &tmp : va_arg(args,int*);
                     int ret = scan_binary(arg);
-                    if (ret == -1) goto end;        // EOF
-                    if (ret == 0) goto end;         // stop scanning
-                    assigned++;                      // successfully read binary
+                    if (ret <= 0) goto end;
+                    if (!suppress) assigned++;
                     break;
                 }
                 case 'f': {
                     if (strcmp(length,"l")==0 || strcmp(length,"ll")==0) {
-                        double *arg = va_arg(args,double*);
-                        if (!scan_float(arg,width)) goto end;
-                    } else {
-                        float *arg = va_arg(args,float*);
                         double tmp;
+                        double *arg = suppress ? &tmp : va_arg(args,double*);
+                        if (!scan_float(arg,width)) goto end;
+                        if (!suppress) assigned++;
+                    } else {
+                        double tmp;
+                        float *arg = suppress ? NULL : va_arg(args,float*);
                         if (!scan_float(&tmp,width)) goto end;
-                        *arg = (float)tmp;
+                        if (!suppress) *arg = (float)tmp;
+                        if (!suppress) assigned++;
                     }
-                    assigned++;
                     break;
                 }
                 case 'c': {
-                    char *arg = va_arg(args, char*);
-                    if (!scan_char(arg, width)) goto end;
-                    assigned++; break;
+                    char tmp[8];
+                    char *arg = suppress ? tmp : va_arg(args,char*);
+                    if (!scan_char(arg,width)) goto end;
+                    if (!suppress) assigned++;
+                    break;
                 }
                 case 's': {
-                    char *arg = va_arg(args, char*);
-                    if (!scan_string(arg, width ? width : 256)) goto end;
-                    assigned++; break;
+                    char tmp[256];
+                    char *arg = suppress ? tmp : va_arg(args,char*);
+                    if (!scan_string(arg,width?width:256)) goto end;
+                    if (!suppress) assigned++;
+                    break;
                 }
-                case 'D': {  // Delimiter extension
-                    char *arg = va_arg(args, char*);     // buffer to store string
-                    int w = width ? width : 256;        // use width if specified, else default
-                    const char *delimiter = ",";        // replace with desired delimiter or pass dynamically
-                    int ret = scan_delimited_string(arg, w, delimiter);
-
-                    if (ret <= 0) goto end;  // 0 = nothing read, -1 = EOF
-                    assigned++;
+                case 'D': {
+                    char tmp[256];
+                    char *arg = suppress ? tmp : va_arg(args,char*);
+                    int w = width?width:256;
+                    const char *delimiter = ",";
+                    int ret = scan_delimited_string(arg,w,delimiter);
+                    if (ret <= 0) goto end;
+                    if (!suppress) assigned++;
                     break;
                 }
                 case 'B': {
-                    int *arg = va_arg(args, int*);
+                    int tmp;
+                    int *arg = suppress ? &tmp : va_arg(args,int*);
                     if (!scan_bool(arg)) goto end;
-                    assigned++; break;
+                    if (!suppress) assigned++;
+                    break;
                 }
                 default: {
-                    // literal character must match input
                     int ch = getchar();
                     if (ch == EOF) goto end;
-                    if (ch != spec) {
-                        ungetc(ch, stdin);
-                        goto end;
-                    }
+                    if (ch != spec) { ungetc(ch, stdin); goto end; }
                     break;
                 }
             }
-        } else if (isspace(*p)) {
-            skip_whitespace(); // skip spaces in format
-        } else {
-            // literal character must match input
+        } else if (isspace(*p)) skip_whitespace();
+        else {
             int ch = getchar();
             if (ch == EOF) goto end;
-            if (ch != *p) {
-                ungetc(ch, stdin);
-                goto end;
-            }
+            if (ch != *p) { ungetc(ch, stdin); goto end; }
         }
     }
 
 end:
     va_end(args);
-    return assigned ? assigned : (feof(stdin) ? EOF : 0);
+    return assigned ? assigned : (feof(stdin)?EOF:0);
 }
