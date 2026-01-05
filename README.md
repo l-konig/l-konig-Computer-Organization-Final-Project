@@ -58,6 +58,8 @@ All tests are designed to compare `my_scanf` output with standard `scanf` where 
 
   gcc test_my_scanf.c my_scanf.c -lm -o test_my_scanf
 
+  --> The -lm flag links the math library which provides functions like pow(), fabs(), etc. Needed because my_scanf.c uses pow() when parsing floating-point numbers with exponents.
+
 4. **Run the Tests**
 
   ./test_my_scanf
