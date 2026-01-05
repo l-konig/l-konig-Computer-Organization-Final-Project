@@ -155,7 +155,7 @@ void test_binary(void) {
 }
 
 /* =========================
-   ALL STRING TESTS
+   STRING TESTS %s
    ========================= */
 static char s1[128], s2[128];
 static int sr1, sr2;
@@ -193,7 +193,7 @@ void test_strings(void) {
 }
 
 /* =========================
-   ALL CHAR TESTS
+   CHAR TESTS %c
    ========================= */
 static char c1,c2;
 static int cr1, cr2;
