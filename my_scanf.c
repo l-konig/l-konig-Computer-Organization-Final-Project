@@ -545,22 +545,24 @@ int my_scanf(const char *format, ...) {
             if (!spec) break;         // End of format string
 
             // Switch based on conversion specifier
-            switch(spec) {
+            switch (spec) {
                 case 'd': { // Signed decimal integer
                     if (suppress) {
-                        int dummy;
-                        if (!scan_int(&dummy, width, length)) goto end;
+                        int discard;
+                        if (!scan_int(&discard, width, length)) goto end;
                     } else {
-                        void *arg = va_arg(args, void*); // Get pointer from argument list
+                        void *arg = va_arg(args, void*);
                         if (!scan_int(arg, width, length)) goto end;
-                        assigned++;                     // Increment successful assignment count
+                        assigned++;
                     }
                     break;
                 }
-                case 'x': { // Hexadecimal integer
+
+                case 'x': {
+                    // Hexadecimal integer
                     if (suppress) {
-                        int dummy;
-                        if (!scan_hex(&dummy, width, length)) goto end;
+                        int discard;
+                        if (!scan_hex(&discard, width, length)) goto end;
                     } else {
                         void *arg = va_arg(args, void*);
                         if (!scan_hex(arg, width, length)) goto end;
